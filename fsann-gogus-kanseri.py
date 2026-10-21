@@ -94,30 +94,40 @@ def main():
     y = 1 - data.target 
     ozellik_isimleri = data.feature_names
 
-    # Anlamli ilk 5 ozelligin secimi
+    # =========================================================================
+    # VERI SIZINTISINI ONLEMEK ICIN ONCE EGITIM / TEST AYRIMI YAPILIR.
+    # Ozellik secimi, olcekleme ve yon hizalamasi YALNIZCA egitim verisinden
+    # ogrenilir; test verisine sadece uygulanir.
+    # =========================================================================
+    X_train_raw, X_test_raw, y_train, y_test = train_test_split(X_raw, y, test_size=0.2, random_state=42)
+
+    # Anlamli ilk 5 ozelligin secimi (yalnizca egitim verisiyle)
     selector = SelectKBest(score_func=f_classif, k=5)
-    X_secilen = selector.fit_transform(X_raw, y)
+    X_train_sec = selector.fit_transform(X_train_raw, y_train)
+    X_test_sec = selector.transform(X_test_raw)
 
     secilen_indeksler = selector.get_support(indices=True)
     secilen_isimler = [ozellik_isimleri[i] for i in secilen_indeksler]
 
-    # KLASIK MLP ICIN STANDART OLCEKLEME
+    # KLASIK MLP ICIN STANDART OLCEKLEME (yalnizca egitim verisiyle ogrenilir)
     scaler = MinMaxScaler()
-    X_scaled_mlp = scaler.fit_transform(X_secilen)
-    
+    X_train_m = scaler.fit_transform(X_train_sec)
+    X_test_m = scaler.transform(X_test_sec)
+
     # =========================================================================
     # FS-ANN ICIN VERI ON ISLEME VE YON HIZALAMASI (SEMANTIC ALIGNMENT)
+    # Korelasyonun isareti yalnizca egitim verisinden hesaplanir; ayni donusum
+    # test verisine de uygulanir.
     # =========================================================================
-    X_scaled_fsann = X_scaled_mlp.copy()
-    for i in range(X_scaled_fsann.shape[1]):
-        corr = np.corrcoef(X_scaled_fsann[:, i], y)[0, 1]
+    X_train_f = X_train_m.copy()
+    X_test_f = X_test_m.copy()
+    for i in range(X_train_f.shape[1]):
+        corr = np.corrcoef(X_train_f[:, i], y_train)[0, 1]
         if corr < 0:
             # Ters orantili ozelliklerin (1 - x) formulu ile duzeltilmesi
-            X_scaled_fsann[:, i] = 1.0 - X_scaled_fsann[:, i]
+            X_train_f[:, i] = 1.0 - X_train_f[:, i]
+            X_test_f[:, i] = 1.0 - X_test_f[:, i]
     # =========================================================================
-
-    X_train_m, X_test_m, y_train, y_test = train_test_split(X_scaled_mlp, y, test_size=0.2, random_state=42)
-    X_train_f, X_test_f, _, _ = train_test_split(X_scaled_fsann, y, test_size=0.2, random_state=42)
 
     y_train_t = torch.tensor(y_train, dtype=torch.float32).unsqueeze(1)
     y_test_t = torch.tensor(y_test, dtype=torch.float32).unsqueeze(1)

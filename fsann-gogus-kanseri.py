@@ -25,7 +25,7 @@ class StandardMLP(nn.Module):
         return out
 
 # =============================================================================
-# 2. ONERILEN FS-ANN MODELI (T-NORM / T-CONORM & GAUSS UYELIK FONKSIYONU)
+# 2. ONERILEN FS-ANN MODELI (LUKASIEWICZ T-NORM / T-CONORM & GAUSS AKTIVASYONU)
 # =============================================================================
 class FSANN_Fuzzy(nn.Module):
     def __init__(self, input_dim):
@@ -40,13 +40,13 @@ class FSANN_Fuzzy(nn.Module):
     def forward(self, x):
         # Degerlerin [0, 1] araliginda kalmasini saglama
         w = torch.clamp(torch.sigmoid(self.weights), 1e-6, 1.0 - 1e-6)
-        x_c = torch.clamp(x, 1e-6, 1.0 - 1e-6)
+        x_c = torch.clamp(x, 0.0, 1.0)
         
-        # T-NORM (Cebirsel Carpim Kesisimi): x * w
-        t_norm = x_c * w
+        # T-NORM (Lukasiewicz Kesisimi): max(0, x + w - 1)
+        t_norm = torch.clamp(x_c + w - 1.0, min=0.0)
         
-        # T-CONORM (Cebirsel Toplam Birlesimi): 1 - prod(1 - T_norm)
-        n = 1.0 - torch.prod(1.0 - t_norm, dim=1)
+        # T-CONORM (Lukasiewicz Sinirli Toplam): min(1, toplam)
+        n = torch.clamp(t_norm.sum(dim=1), max=1.0)
         
         # GAUSS AKTIVASYONU: exp( - (n - c)^2 / (2 * sigma^2) )
         sigma_sq = torch.clamp(self.sigma ** 2, min=1e-4)
